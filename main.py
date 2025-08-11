@@ -172,7 +172,7 @@ def approve_pending_members(auth: AuthModel):
     # Get teams where I'm a captain
     url = PB_API_COLLECTIONS.format(collection="teamMembers", operation="records")
     headers = {"Authorization": f"Bearer {auth.token}"}
-    params = {"filter": f"(user='{auth.id}' && isCaptain=true)"}
+    params = {"filter": f"(user='{auth.id}'&&isCaptain=true)"}
     resp = requests.get(url, headers=headers, params=params)
     my_captain_teams = json.loads(resp.content)["items"]
 
@@ -181,18 +181,23 @@ def approve_pending_members(auth: AuthModel):
 
         # Get all pending members for that team
         url = PB_API_COLLECTIONS.format(collection="teamMembers", operation="records")
-        params = {"filter": f"(team='{team_id}' && state='pending')"}
+        params = {"filter": f"(team='{team_id}'&&state='pending')"}
         resp = requests.get(url, headers=headers, params=params)
         pending_members = json.loads(resp.content)["items"]
 
         # Approve each one
         for pm in pending_members:
-            member_id = pm["id"]
+            record_id = pm["id"]
+            member_id = pm["user"]
             update_url = PB_API_COLLECTIONS.format(
-                collection="teamMembers", operation=f"records/{member_id}"
+                collection="teamMembers", operation=f"records/{record_id}"
             )
-            data = {"state": "active"}
-            requests.patch(update_url, json=data, headers=headers)
+            data = {
+                "state": "active" if random.random() > 0.2 else "rejected",
+                "user": member_id,
+                "team": team_id,
+            }
+            resp = requests.patch(update_url, json=data, headers=headers)
 
 
 def generate_slots_json(n=5):
@@ -231,7 +236,7 @@ def generate_game_request(auth: AuthModel, team: str):
     resp = requests.post(url, params=params, headers=headers, json=data)
 
 
-def submit_game_request(auth: AuthModel):
+def submit_game_requests(auth: AuthModel):
     # if not a captain, return
     # get teams, check if im the captain]
     url = PB_API_COLLECTIONS.format(collection="teamMembers", operation="records")
@@ -241,12 +246,13 @@ def submit_game_request(auth: AuthModel):
     my_teams = json.loads(resp.content)["items"]
     for team_member_entry in my_teams:
         if bool(team_member_entry["isCaptain"]):
-            generate_game_request(auth, team_member_entry["team"])
+            for _ in range(random.randint(5, 10)):
+                generate_game_request(auth, team_member_entry["team"])
 
 
 def worker_func(thread_id):
     auth = create_user_and_login(thread_id)
-    if random.random() > 0.5:
+    if random.random() > 0.9:
         create_team(auth)
     else:
         join_random_team(auth)
@@ -260,7 +266,7 @@ def worker_func(thread_id):
     approve_pending_members(auth)
 
     # If captain of a team, submit game request
-    submit_game_request(auth)
+    submit_game_requests(auth)
 
     try:
         barrier.wait()
@@ -269,6 +275,88 @@ def worker_func(thread_id):
 
     if thread_id == 1:
         call_game_matcher_cron()
+
+    try:
+        barrier.wait()
+    except threading.BrokenBarrierError:
+        print(f"Barrier broken for thread {thread_id}")
+
+    # if captain, accept game requests
+    accept_game_requests(auth)
+
+    try:
+        barrier.wait()
+    except threading.BrokenBarrierError:
+        print(f"Barrier broken for thread {thread_id}")
+
+    for i in range(random.randint(5, 10)):
+        send_message(auth)
+
+
+def send_message(auth: AuthModel):
+    # Get all teams where user is active (not just captain)
+    url = PB_API_COLLECTIONS.format(collection="teamMembers", operation="records")
+    headers = {"Authorization": f"Bearer {auth.token}"}
+    params = {"filter": f"(user='{auth.id}'&&state='active')", "perPage": 1000}
+    resp = requests.get(url, headers=headers, params=params)
+    team_memberships = resp.json().get("items", [])
+
+    if not team_memberships:
+        return
+
+    # For each team, get accepted game requests
+    for _ in team_memberships:
+        url = PB_API_COLLECTIONS.format(collection="games", operation="records")
+        resp = requests.get(url, headers=headers)
+        games = resp.json().get("items", [])
+
+        if not games:
+            return
+
+        for game in games:
+            # Prepare message data
+            message_text = fake.sentence(nb_words=12)  # random sentence as message
+            message_data = {
+                "user": auth.id,
+                "game": game["id"],
+                "text": message_text,
+            }
+            url = PB_API_COLLECTIONS.format(collection="messages", operation="records")
+            resp = requests.post(url, headers=headers, json=message_data)
+
+
+def accept_game_requests(auth: AuthModel):
+    """
+    For each team where the user is captain and active,
+    accept (approve) pending game requests by updating their state.
+    """
+    # Get teams where I'm captain and active
+    url = PB_API_COLLECTIONS.format(collection="teamMembers", operation="records")
+    headers = {"Authorization": f"Bearer {auth.token}"}
+    params = {
+        "filter": f"(user='{auth.id}'&&isCaptain=true&&state='active')",
+        "perPage": 1000,
+    }
+    resp = requests.get(url, headers=headers, params=params)
+    captain_teams = json.loads(resp.content).get("items", [])
+
+    for entry in captain_teams:
+        team_id = entry["team"]
+
+        # Get pending game requests for this team
+        url = PB_API_COLLECTIONS.format(collection="gameRequests", operation="records")
+        params = {"filter": f"(team='{team_id}' && status='pending')", "perPage": 100}
+        resp = requests.get(url, headers=headers, params=params)
+        pending_requests = json.loads(resp.content).get("items", [])
+
+        # Approve each pending request
+        for gr in pending_requests:
+            record_id = gr["id"]
+            update_url = PB_API_COLLECTIONS.format(
+                collection="gameRequests", operation=f"records/{record_id}"
+            )
+            data = {"status": "accepted"}
+            resp = requests.patch(update_url, json=data, headers=headers)
 
 
 def call_game_matcher_cron():
