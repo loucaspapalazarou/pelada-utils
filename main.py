@@ -76,7 +76,7 @@ def initialize_pocketbase():
 
     # Start server
     server_proc = subprocess.Popen(
-        ["./pelada-backend", "serve", "--dev"],
+        ["./pelada-backend", "serve", "--dev", "--http=0.0.0.0:8090"],
         cwd=PB_ROOT,
         stdout=log_file_handler,
         stderr=log_file_handler,
