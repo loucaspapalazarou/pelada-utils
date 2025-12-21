@@ -10,17 +10,14 @@ if __name__ == "__main__":
 
             orchestrator = ActorOrchestrator()
             orchestrator.superuser_login()
-
-            if orchestrator.superuser is not None:
-                print(f"Superuser logged in: {orchestrator.superuser.id}")
-            else:
-                print("Failed to log in superuser")
-
             orchestrator.create_users(count=20)
             orchestrator.act_create_teams(chance=0.5)
             orchestrator.act_join_teams()
             orchestrator.act_join_and_approve()
-            # orchestrator.act_submit_game_requests() -> broken (maybe its the actual code)
+            orchestrator.act_submit_game_requests()
+            orchestrator.call_game_matcher_cron()
+            orchestrator.act_accept_matched_game_requests()
+            orchestrator.act_interact_with_messages()
 
             print("Server ready")
 

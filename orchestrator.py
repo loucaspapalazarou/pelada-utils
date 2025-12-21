@@ -4,7 +4,12 @@ from typing import Optional
 from faker import Faker
 from models import AuthModel
 from actor import Actor
-from const import PB_API_COLLECTIONS, SUPERUSER_EMAIL, SUPERUSER_PASSWORD
+from const import (
+    PB_API_COLLECTIONS,
+    SUPERUSER_EMAIL,
+    SUPERUSER_PASSWORD,
+    PB_API_BASE_URL,
+)
 
 fake = Faker()
 
@@ -24,6 +29,15 @@ class ActorOrchestrator:
         auth = resp.json()
         self.superuser = AuthModel(id=auth["record"]["id"], token=auth["token"])
         return self.superuser
+
+    def call_game_matcher_cron(self):
+        if self.superuser is None:
+            raise ValueError(
+                "Superuser must be logged in first. Call superuser_login()."
+            )
+        url = PB_API_BASE_URL + "crons/game-matcher"
+        headers = {"Authorization": f"Bearer {self.superuser.token}"}
+        requests.post(url, headers=headers)
 
     def create_users(self, count=20):
         """
@@ -82,3 +96,21 @@ class ActorOrchestrator:
     def act_submit_game_requests(self):
         for user in self.users:
             user.submit_game_request()
+
+    def act_accept_matched_game_requests(self):
+        """
+        All actors attempt to accept game requests
+        for teams they captain.
+        """
+        for actor in self.users:
+            actor.accept_matched_game_requests()
+
+    def act_interact_with_messages(self):
+        for actor in self.users:
+            actor.send_messages()
+
+        for actor in self.users:
+            actor.edit_own_messages()
+
+        # for actor in self.users:
+        #     actor.delete_own_messages()

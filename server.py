@@ -49,7 +49,7 @@ class PocketBaseServer:
                 "main.go",
                 "serve",
                 "--dev",
-                f"--http=0.0.0.0:{self.pb_port}",
+                f"--http=127.0.0.1:{self.pb_port}",
             ],
             cwd=self.pb_root,
             stdout=self.log_handler,
