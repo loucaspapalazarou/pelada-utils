@@ -8,8 +8,11 @@ from const import *
 
 
 class PocketBaseServer:
-    def __init__(self, pb_root=PB_ROOT, pb_port=PB_PORT, log_file=LOG_FILE):
+    def __init__(
+        self, pb_root=PB_ROOT, pb_port=PB_PORT, pb_ip=PB_IP, log_file=LOG_FILE
+    ):
         self.pb_root = pb_root
+        self.pb_ip = pb_ip
         self.pb_port = pb_port
         self.log_file_path = log_file
         self.process = None
@@ -49,7 +52,7 @@ class PocketBaseServer:
                 "main.go",
                 "serve",
                 "--dev",
-                f"--http=127.0.0.1:{self.pb_port}",
+                f"--http={self.pb_ip}:{self.pb_port}",
             ],
             cwd=self.pb_root,
             stdout=self.log_handler,
