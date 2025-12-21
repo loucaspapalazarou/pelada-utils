@@ -1,4 +1,5 @@
 import time
+import sys
 
 from server import PocketBaseServer
 from orchestrator import ActorOrchestrator
@@ -8,9 +9,12 @@ if __name__ == "__main__":
         try:
             server.start()
 
+            print("Populating database")
+            sys.stdout.flush()
+
             orchestrator = ActorOrchestrator()
             orchestrator.superuser_login()
-            orchestrator.create_users(count=20)
+            orchestrator.create_users(count=50)
             orchestrator.act_create_teams(chance=0.5)
             orchestrator.act_join_teams()
             orchestrator.act_join_and_approve()
