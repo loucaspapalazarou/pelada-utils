@@ -44,24 +44,21 @@ class PocketBaseServer:
         # Open log file
         self.log_handler = open(self.log_file_path, "w")
 
-        # Start server
+        # Start server using run.sh
+        env = os.environ.copy()
+        env["PB_PORT"] = self.pb_port
+        
         self.process = subprocess.Popen(
-            [
-                "go",
-                "run",
-                "main.go",
-                "serve",
-                "--dev",
-                f"--http={self.pb_ip}:{self.pb_port}",
-            ],
+            ["./run.sh", "--dev", "--port", self.pb_port],
             cwd=self.pb_root,
             stdout=self.log_handler,
             stderr=self.log_handler,
+            env=env,
         )
 
         self.wait_for_server(PB_API_BASE_URL + "health")
 
-    def wait_for_server(self, url, timeout=10):
+    def wait_for_server(self, url, timeout=30):
         print("Waiting for server to start...", end="")
         for _ in range(timeout * 10):
             try:
@@ -71,17 +68,28 @@ class PocketBaseServer:
                     return True
             except requests.exceptions.ConnectionError:
                 pass
-            time.sleep(1)
+            time.sleep(0.1)
         raise Exception("PocketBase server did not start in time.")
 
     def kill_existing_server(self):
         system = platform.system()
         if system == "Windows":
-            cmd = ["taskkill", "/F", "/IM", "pelada-backend.exe"]
+            subprocess.run(["taskkill", "/F", "/IM", "pelada-backend.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
-            cmd = ["pkill", "-f", "pelada-backend"]
-
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Kill any process using the port
+            subprocess.run(["pkill", "-f", f"http=.*:{self.pb_port}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["pkill", "-f", "pelada-backend"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Also try to kill by port using lsof
+            result = subprocess.run(
+                ["lsof", "-ti", f":{self.pb_port}"],
+                capture_output=True,
+                text=True
+            )
+            if result.stdout.strip():
+                for pid in result.stdout.strip().split('\n'):
+                    subprocess.run(["kill", "-9", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        time.sleep(0.5)  # Give processes time to die
         print("Killed existing server")
 
     def terminate(self, timeout=5, force=True):
