@@ -46,7 +46,7 @@ class ActorOrchestrator:
         self.users = []
         for i in range(count):
             full_name = fake.first_name()
-            email = f"{full_name.lower()}.{i}@test.com"
+            email = f"{full_name.lower()}{i}@test.com"
             password = "password"
 
             # create user
