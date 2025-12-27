@@ -12,8 +12,8 @@ PB_ROOT = Path(__file__).parent.parent / "pelada-backend"
 PB_DATA_DIR = PB_ROOT / "pb_data"
 
 # Admin credentials
-SUPERUSER_EMAIL = "admin@pelada.local"
-SUPERUSER_PASSWORD = "adminpassword123"
+SUPERUSER_EMAIL = "loukis500@gmail.com"
+SUPERUSER_PASSWORD = "password"
 
 # Server settings
 LOG_FILE = Path(__file__).parent / "pb_server.log"

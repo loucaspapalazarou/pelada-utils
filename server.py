@@ -44,12 +44,19 @@ class PocketBaseServer:
         # Open log file
         self.log_handler = open(self.log_file_path, "w")
 
-        # Start server using run.sh
+        # Start server
         env = os.environ.copy()
         env["PB_PORT"] = self.pb_port
-        
+
         self.process = subprocess.Popen(
-            ["./run.sh", "--dev", "--port", self.pb_port],
+            [
+                "go",
+                "run",
+                "main.go",
+                "serve",
+                f"--http={self.pb_ip}:{self.pb_port}",
+                "--dev",
+            ],
             cwd=self.pb_root,
             stdout=self.log_handler,
             stderr=self.log_handler,
@@ -88,7 +95,7 @@ class PocketBaseServer:
             if result.stdout.strip():
                 for pid in result.stdout.strip().split('\n'):
                     subprocess.run(["kill", "-9", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
+
         time.sleep(0.5)  # Give processes time to die
         print("Killed existing server")
 

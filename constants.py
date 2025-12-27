@@ -55,8 +55,8 @@ class TeamMemberFields:
 
 # game field names
 class GameFields:
-    GAME_REQUEST_HOME = "gameRequestHome"
-    GAME_REQUEST_AWAY = "gameRequestAway"
+    HOME_TEAM = "homeTeam"
+    AWAY_TEAM = "awayTeam"
     VENUE = "venue"
     DATETIME_START = "datetimeStart"
     DATETIME_END = "datetimeEnd"
