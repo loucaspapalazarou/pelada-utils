@@ -53,11 +53,11 @@ def setup_repos() -> None:
     """Ensure both backend and common repos are cloned and up to date."""
     clone_or_pull_repo(BACKEND_REPO_URL, BACKEND_DIR)
     clone_or_pull_repo(COMMON_REPO_URL, COMMON_DIR)
-    
+
     # Generate constants from common schema
     print("Generating constants from schema...")
     subprocess.run(
-        ["python3", "generator/generate.py"],
+        ["python", "generator/generate.py"],
         cwd=COMMON_DIR,
         check=True,
         capture_output=True,
