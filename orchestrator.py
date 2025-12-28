@@ -62,6 +62,7 @@ class ActorOrchestrator:
             }
             resp = requests.post(url, json=data)
             resp.raise_for_status()
+            user_id = resp.json()["id"]
 
             # login user
             url = PB_API_COLLECTIONS.format(
@@ -79,6 +80,23 @@ class ActorOrchestrator:
             futures = {executor.submit(create_single_user, i): i for i in range(count)}
             for future in tqdm(as_completed(futures), total=count, desc="Creating users"):
                 self.users.append(future.result())
+
+    def verify_all_users(self, max_workers=10):
+        """
+        Verify all users using superuser privileges.
+        Must call superuser_login() first.
+        """
+        if self.superuser is None:
+            raise ValueError("Superuser must be logged in first. Call superuser_login().")
+
+        def verify_user(actor):
+            url = PB_API_COLLECTIONS.format(collection="users", operation=f"records/{actor.auth.id}")
+            headers = {"Authorization": f"Bearer {self.superuser.token}"}
+            data = {"verified": True}
+            resp = requests.patch(url, json=data, headers=headers)
+            resp.raise_for_status()
+
+        self._run_parallel(verify_user, self.users, "Verifying users", max_workers)
 
     def _run_parallel(self, func, items, desc, max_workers=10):
         """Helper to run a function on items in parallel with progress bar."""
@@ -157,5 +175,15 @@ class ActorOrchestrator:
             max_workers,
         )
 
-        # for actor in self.users:
-        #     actor.delete_own_messages()
+    def populate(self, user_count=50):
+        """Run the full population sequence."""
+        self.superuser_login()
+        self.create_users(count=user_count)
+        self.verify_all_users()
+        self.act_create_teams(chance=0.5)
+        self.act_join_teams()
+        self.act_join_and_approve()
+        self.act_submit_game_requests()
+        self.call_game_matcher_cron()
+        self.act_accept_matched_game_requests()
+        self.act_interact_with_messages()
