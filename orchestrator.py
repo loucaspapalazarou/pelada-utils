@@ -175,7 +175,7 @@ class ActorOrchestrator:
             max_workers,
         )
 
-    def populate(self, user_count=50):
+    def populate(self, user_count=100):
         """Run the full population sequence."""
         self.superuser_login()
         self.create_users(count=user_count)
