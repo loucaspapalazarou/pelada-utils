@@ -29,17 +29,29 @@ class Actor:
         return team
 
     def request_to_join_teams(self, max_joins=2):
-        """Submit join requests to random teams."""
-        url = PB_API_COLLECTIONS.format(collection="teams", operation="records")
+        """Submit join requests to random teams (excluding teams already joined)."""
         headers = {"Authorization": f"Bearer {self.auth.token}"}
+
+        # Get teams user is already a member of
+        url = PB_API_COLLECTIONS.format(collection="teamMembers", operation="records")
+        params = {"filter": f"(user='{self.auth.id}')", "perPage": 1000}
+        resp = requests.get(url, headers=headers, params=params)
+        existing_memberships = resp.json().get("items", [])
+        already_joined_team_ids = {m["team"] for m in existing_memberships}
+
+        # Get all teams
+        url = PB_API_COLLECTIONS.format(collection="teams", operation="records")
         resp = requests.get(url, headers=headers)
         teams = resp.json().get("items", [])
 
-        if not teams:
+        # Filter out teams already joined
+        available_teams = [t for t in teams if t["id"] not in already_joined_team_ids]
+
+        if not available_teams:
             return []
 
-        random.shuffle(teams)
-        teams_to_join = teams[:max_joins]
+        random.shuffle(available_teams)
+        teams_to_join = available_teams[:max_joins]
 
         results = []
         for team in teams_to_join:
@@ -157,7 +169,7 @@ class Actor:
         """
         headers = {"Authorization": f"Bearer {self.auth.token}"}
 
-        # teams where user is active
+        # Get teams where user is active member
         url = PB_API_COLLECTIONS.format(collection="teamMembers", operation="records")
         params = {
             "filter": f"(user='{self.auth.id}'&&state='active')",
@@ -170,9 +182,19 @@ class Actor:
         if not memberships:
             return
 
-        # get games
+        team_ids = [m["team"] for m in memberships]
+        if not team_ids:
+            return
+
+        # Build filter for games where user's teams are home or away
+        team_filters = " || ".join(
+            [f"(homeTeam='{tid}' || awayTeam='{tid}')" for tid in team_ids]
+        )
+
+        # Get games where user participates
         url = PB_API_COLLECTIONS.format(collection="games", operation="records")
-        resp = requests.get(url, headers=headers, params={"perPage": 1000})
+        params = {"filter": team_filters, "perPage": 1000}
+        resp = requests.get(url, headers=headers, params=params)
         resp.raise_for_status()
         games = resp.json().get("items", [])
 

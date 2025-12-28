@@ -4,7 +4,11 @@ import time
 import subprocess
 import os
 import shutil
-from const import *
+from const import (
+    PB_ROOT, PB_PORT, PB_IP, LOG_FILE, PB_DATA_DIR,
+    PB_API_BASE_URL, SUPERUSER_EMAIL, SUPERUSER_PASSWORD,
+    setup_repos
+)
 
 
 class PocketBaseServer:
@@ -19,6 +23,9 @@ class PocketBaseServer:
         self.log_handler = None
 
     def start(self, kill_existing=True, remove_data=True):
+        # Ensure repos are cloned/updated
+        setup_repos()
+        
         if kill_existing:
             self.kill_existing_server()
 

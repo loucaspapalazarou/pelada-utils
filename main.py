@@ -42,7 +42,7 @@ def main():
                 return
 
             populate_db()
-            print("Server ready")
+            print("\033[92mServer ready\033[0m")
 
             while True:
                 time.sleep(1)

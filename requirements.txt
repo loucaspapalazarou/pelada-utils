@@ -3,6 +3,7 @@ charset-normalizer==3.4.2
 Faker==37.5.3
 idna==3.10
 requests==2.32.4
+tqdm==4.67.1
 tzdata==2025.2
 urllib3==2.5.0
 

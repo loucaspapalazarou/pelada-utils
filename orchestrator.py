@@ -1,7 +1,9 @@
 import requests
 import random
 from typing import Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from faker import Faker
+from tqdm import tqdm
 from models import AuthModel
 from actor import Actor
 from const import (
@@ -39,12 +41,13 @@ class ActorOrchestrator:
         headers = {"Authorization": f"Bearer {self.superuser.token}"}
         requests.post(url, headers=headers)
 
-    def create_users(self, count=20):
+    def create_users(self, count=20, max_workers=10):
         """
-        Generate users and store as Actor instances.
+        Generate users and store as Actor instances using multiple threads.
         """
         self.users = []
-        for i in range(count):
+
+        def create_single_user(i):
             full_name = fake.first_name()
             email = f"{full_name.lower()}{i}@test.com"
             password = "password"
@@ -70,47 +73,89 @@ class ActorOrchestrator:
             auth_data = resp.json()
             auth = AuthModel(id=auth_data["record"]["id"], token=auth_data["token"])
 
-            self.users.append(Actor(auth))
+            return Actor(auth)
 
-    def act_create_teams(self, chance=0.5):
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(create_single_user, i): i for i in range(count)}
+            for future in tqdm(as_completed(futures), total=count, desc="Creating users"):
+                self.users.append(future.result())
+
+    def _run_parallel(self, func, items, desc, max_workers=10):
+        """Helper to run a function on items in parallel with progress bar."""
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(func, item) for item in items]
+            for _ in tqdm(as_completed(futures), total=len(futures), desc=desc):
+                pass
+
+    def act_create_teams(self, chance=0.5, max_workers=10):
         """
         Each user has a chance to create a team.
         """
-        for user in self.users:
+        def maybe_create_team(user):
             if random.random() < chance:
                 user.create_team()
 
-    def act_join_teams(self):
-        for actor in self.users:
-            actor.request_to_join_teams()
+        self._run_parallel(maybe_create_team, self.users, "Creating teams", max_workers)
 
-    def act_join_and_approve(self, max_joins=2, approve_ratio=0.9):
+    def act_join_teams(self, max_workers=10):
+        self._run_parallel(
+            lambda actor: actor.request_to_join_teams(),
+            self.users,
+            "Joining teams",
+            max_workers,
+        )
+
+    def act_join_and_approve(self, max_joins=2, approve_ratio=0.9, max_workers=10):
         # first, all users request to join teams
-        for actor in self.users:
-            actor.request_to_join_teams(max_joins=max_joins)
+        self._run_parallel(
+            lambda actor: actor.request_to_join_teams(max_joins=max_joins),
+            self.users,
+            "Requesting to join teams",
+            max_workers,
+        )
 
         # then, all captains approve pending requests
-        for actor in self.users:
-            actor.approve_pending_members(approve_ratio=approve_ratio)
+        self._run_parallel(
+            lambda actor: actor.approve_pending_members(approve_ratio=approve_ratio),
+            self.users,
+            "Approving members",
+            max_workers,
+        )
 
-    def act_submit_game_requests(self):
-        for user in self.users:
-            user.submit_game_request()
+    def act_submit_game_requests(self, max_workers=10):
+        self._run_parallel(
+            lambda user: user.submit_game_request(),
+            self.users,
+            "Submitting game requests",
+            max_workers,
+        )
 
-    def act_accept_matched_game_requests(self):
+    def act_accept_matched_game_requests(self, max_workers=10):
         """
         All actors attempt to accept game requests
         for teams they captain.
         """
-        for actor in self.users:
-            actor.accept_matched_game_requests()
+        self._run_parallel(
+            lambda actor: actor.accept_matched_game_requests(),
+            self.users,
+            "Accepting game requests",
+            max_workers,
+        )
 
-    def act_interact_with_messages(self):
-        for actor in self.users:
-            actor.send_messages()
+    def act_interact_with_messages(self, max_workers=10):
+        self._run_parallel(
+            lambda actor: actor.send_messages(),
+            self.users,
+            "Sending messages",
+            max_workers,
+        )
 
-        for actor in self.users:
-            actor.edit_own_messages()
+        self._run_parallel(
+            lambda actor: actor.edit_own_messages(),
+            self.users,
+            "Editing messages",
+            max_workers,
+        )
 
         # for actor in self.users:
         #     actor.delete_own_messages()
